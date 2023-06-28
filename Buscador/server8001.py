@@ -4,8 +4,7 @@ import requests
 import pymongo
 from flask import Flask, request
 from datetime import datetime, date
-
-from serverPrincipal import serialize_obj
+from collections import deque
 
 def ler_arquivo_configuracao(nome_arquivo):
     with open(nome_arquivo, 'r') as arquivo:
@@ -43,9 +42,13 @@ def configurar_servidor(configuracoes):
             mensagem = f'Objeto encontrado no servidor de código {id_servidor}, Porta {porta}'
             print(mensagem)
 
-            return json.dumps(objeto_local, default=serialize_obj)
+            return json.dumps(objeto_local, default=serialize_datetime)
 
-        for vizinho in vizinhos:
+        visitados = set() 
+        fila = deque(vizinhos) 
+
+        while fila:
+            vizinho = fila.popleft()
             url_vizinho = f"http://localhost:{vizinho['port']}/buscar?id={id_objeto}"
             try:
                 response = requests.get(url_vizinho)
@@ -53,6 +56,11 @@ def configurar_servidor(configuracoes):
                     return response.json()
             except requests.exceptions.ConnectionError:
                 continue
+
+            visitados.add(vizinho['id'])
+            for vizinho_do_vizinho in vizinho['vizinhos']:
+                if vizinho_do_vizinho['id'] not in visitados:
+                    fila.append(vizinho_do_vizinho)
 
         mensagem_vazio = 'Atenção: Nenhum vizinho possui o objeto.'
         return json.dumps({'message': mensagem_vazio})
